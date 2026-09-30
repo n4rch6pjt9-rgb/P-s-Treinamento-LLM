@@ -6,3 +6,8 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# dados do treino (rótulos e splits ficam fora do git)
+training/data/
+__pycache__/
+.pytest_cache/
