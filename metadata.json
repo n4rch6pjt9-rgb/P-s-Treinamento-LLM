@@ -1,0 +1,6 @@
+{
+  "name": "Tunix Architecture Explorer",
+  "description": "Interactive system design and architectural overview of Tunix (Tune-in-JAX), the JAX-native LLM post-training framework for SFT, RL, and Agentic RL.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
