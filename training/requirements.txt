@@ -1,0 +1,4 @@
+# pipeline local (coleta, rótulo, avaliação). O notebook instala o Tunix no Colab.
+google-genai>=1.0
+pyyaml>=6
+pytest>=8

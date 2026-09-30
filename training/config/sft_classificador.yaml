@@ -1,0 +1,27 @@
+# SFT do classificador de escopo LicitaGym (Tunix + LoRA). Lido pelo notebook training/sft_tunix.ipynb.
+# O Config Playground do Explorer (src/) sugere gemma-2-9b; aqui usamos um modelo que cabe no Colab grátis.
+modelo:
+  hf_id: google/gemma-3-1b-it          # licença "gated" no HF: aceite no site e defina HF_TOKEN nos Secrets do Colab
+  tokenizer: gs://gemma-data/tokenizers/tokenizer_gemma3.model
+lora:
+  rank: 16
+  alpha: 32.0
+  module_path: ".*q_einsum|.*kv_einsum|.*gate_proj|.*down_proj|.*up_proj"
+dados:
+  dir: /content/drive/MyDrive/licitagym-treino   # train.jsonl, val.jsonl, test.jsonl (export_dataset.py montar)
+  max_len: 384          # prompt (instrução + objeto + item) + resposta JSON curta
+  batch: 8              # múltiplo do eixo fsdp da malha
+  epocas: 3
+treino:
+  otimizador: adamw
+  lr: 1.0e-4
+  max_steps: 600
+  eval_every_n_steps: 50
+  checkpoint_dir: /content/drive/MyDrive/licitagym-treino/lora_ckpts
+  save_interval_steps: 100
+  max_to_keep: 2
+avaliacao:
+  max_generation_steps: 16  # a resposta é {"categoria": "..."}
+  saida_merged: /content/drive/MyDrive/licitagym-treino/gemma3-1b-licitagym-lora
+aceite:
+  criterio: macro_f1_sft > macro_f1_regras   # training/avaliar.py
