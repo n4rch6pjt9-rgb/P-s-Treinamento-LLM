@@ -30,6 +30,14 @@ EXEMPLOS = [  # few-shot curto; ajuste com casos reais revisados
     ("LEG PRESS 45 GRAUS COM CARGA DE 200 KG", None, "forte"),
     ("Bola de futsal oficial", None, "fraco"),
     ("Placa emborrachada 1x1 m 20 mm para academia", None, "piso"),
+    ("Piso sintético antiderrapante, cor preta, espessura 3 mm, material borracha", None, "piso"),
+    ("Grama sintética 20 mm, cor verde escuro, mínimo 60.000 pontos por m²", None, "piso"),
+    ("Fornecimento e instalação de gramado sintético na quadra society", None, "obra_piso"),
+    ("Serviço de manutenção de gramado sintético: escovação e reposição de infill", None, "obra_piso"),
+    ("Fita adesiva multiuso, polipropileno", "Registro de preços para aquisição de borracha granulada", "fora"),
+    ("Tapete de borracha para baia de cavalos, 1,80 x 1,20 m, 17 mm", None, "piso"),
+    ("Piso modular esportivo em polipropileno com encaixe macho-fêmea e amortecedores em TPE, 250x250 mm",
+     "Revestimento de quadra poliesportiva", "fora"),
     ("Borracha granulada SBR para reposição do campo sintético", None, "borracha"),
     ("Execução de piso emborrachado monolítico no playground", None, "obra_piso"),
     ("Cabo de aço revestido para aparelho de musculação", "Manutenção de equipamentos da academia", "manutencao"),
@@ -41,7 +49,13 @@ def instrucao_lote() -> str:
     regras = "\n".join(f"- {k}: {v}" for k, v in DESCRICAO_ROTULOS.items())
     exemplos = "\n".join(json.dumps({"item": d, "objeto": o, "categoria": c}, ensure_ascii=False) for d, o, c in EXEMPLOS)
     return ("Classifique cada item de licitação pública para a Playfit (equipamentos de academia, pisos de borracha, "
-            f"grama sintética). Rótulos:\n{regras}\nExemplos:\n{exemplos}\n"
+            f"grama sintética). Rótulos:\n{regras}\n"
+            "Regras de desempate: classifique o ITEM; o objeto da licitação é só contexto e não decide sozinho. "
+            "Grama sintética ou piso emborrachado só fornecido = piso; com instalação, substituição ou serviço "
+            "no local = obra_piso. Piso feito de borracha é piso, não borracha (borracha = granulado/raspa/infill). "
+            "Piso modular plástico (polipropileno/TPE encaixável) de quadra é fora, mesmo citando absorção de "
+            "impacto: o que decide é o material do piso, não o benefício.\n"
+            f"Exemplos:\n{exemplos}\n"
             "Responda só com uma lista JSON [{\"id\": ..., \"categoria\": ...}] na mesma ordem.")
 
 
