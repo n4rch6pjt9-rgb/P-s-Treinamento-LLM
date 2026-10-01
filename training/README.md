@@ -14,7 +14,7 @@ O `src/` deste repositório é o *Tunix Architecture Explorer* (documentação v
   em casos como "solução de gestão para academia", que vira `forte`, e deixam cerca de 84% dos itens do banco sem categoria.
 - **Quando vale:** o SFT só compensa com **1.500 a 2.000 exemplos revisados por humano**. Abaixo disso, use o Gemini com
   alguns exemplos no prompt (`rotular_gemini.py`) direto.
-- **Critério de aceite:** o modelo só vai para produção se o **macro-F1 no teste superar o das regras**.
+- **Critério de aceite:** o modelo só vai para produção se o **macro-F1 nos itens do LicitaGym (`lg-`) do teste superar o das regras**. Os objetos do Sesc ajudam no treino, mas têm outra distribuição; `avaliar.py` mostra o F1 por origem.
 
 ## Fluxo
 

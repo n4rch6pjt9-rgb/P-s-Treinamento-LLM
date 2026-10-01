@@ -18,7 +18,7 @@ Fine-tuning do Gemma 3 1B-it com LoRA para classificar itens de licitação. O m
 5. **Treinar:** `sft_tunix.ipynb` no Colab (TPU v5e-1 ou T4), com a configuração em `config/sft_classificador.yaml`.
 6. **Avaliar:** `python avaliar.py --baseline-regras <coletor>`
 
-**Critério de aceite:** o macro-F1 no teste precisa superar o das regras atuais do coletor. Os dados (`training/data/`) ficam fora do git. Detalhes em [training/README.md](training/README.md).
+**Critério de aceite:** o macro-F1 nos itens do LicitaGym do conjunto de teste precisa superar o das regras atuais do coletor (os objetos do Sesc ajudam no treino, mas têm outra distribuição; `avaliar.py` mostra as duas origens). Os dados (`training/data/`) ficam fora do git. Detalhes em [training/README.md](training/README.md).
 
 ---
 
