@@ -95,7 +95,7 @@ def coletar_supabase(url: str, chave: str) -> list[dict]:
     out, inicio, passo = [], 0, 1000
     while True:
         # A mesma URL limpa aqui também
-        lote, _ = _get_json(f"{url}/rest/v1/licitacao_itens?select=id,licitacao_id,descricao,categoria_escopo"
+        lote, _ = _get_json(f"{url}/rest/v1/public.licitacao_itens?select=id,licitacao_id,descricao,categoria_escopo"
                             f"&order=id&offset={inicio}&limit={passo}", h)
         
         for it in lote:
