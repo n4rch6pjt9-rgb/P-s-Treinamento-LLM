@@ -81,19 +81,20 @@ def _get_json(url: str, headers: dict | None = None, tentativas: int = 3) -> tup
 
 
 def coletar_supabase(url: str, chave: str) -> list[dict]:
-    # ADICIONADO: "Accept-Profile": "public" para forçar o schema correto
+    # O header Accept-Profile é o que diz ao Supabase para usar o schema 'public'
     h = {
         "apikey": chave, 
         "Authorization": f"Bearer {chave}",
-        "Accept-Profile": "public"
+        "Accept-Profile": "public"  # <-- Isso é o que faz a mágica
     }
     
-    lics, _ = _get_json(f"{url}/rest/v1/licitacoes_externas?select=id,objeto,fonte&limit=10000", h)
-    objeto = {l["id"]: l for l in lics}
+    # A URL DEVE SER LIMPA, sem 'public.' antes do nome da tabela
+    lics, _ = _get_json(f"{url}/rest/v1/public.licitacoes_externas?select=id,objeto,fonte&limit=10000", h)
     
+    objeto = {l["id"]: l for l in lics}
     out, inicio, passo = [], 0, 1000
     while True:
-        # Como o header 'h' já contém o Accept-Profile, esta chamada também funcionará perfeitamente
+        # A mesma URL limpa aqui também
         lote, _ = _get_json(f"{url}/rest/v1/licitacao_itens?select=id,licitacao_id,descricao,categoria_escopo"
                             f"&order=id&offset={inicio}&limit={passo}", h)
         
