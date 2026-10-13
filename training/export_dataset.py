@@ -85,16 +85,16 @@ def coletar_supabase(url: str, chave: str) -> list[dict]:
     h = {
         "apikey": chave, 
         "Authorization": f"Bearer {chave}",
-        "Accept-Profile": "public"  # <-- Isso é o que faz a mágica
+        "Accept-Profile": "public"
     }
     
-    # A URL DEVE SER LIMPA, sem 'public.' antes do nome da tabela
-    lics, _ = _get_json(f"{url}/rest/v1/public.licitacoes_externas?select=id,objeto,fonte&limit=10000", h)
+    # URL LIMPA: APENAS o nome da tabela, sem 'public.'
+    lics, _ = _get_json(f"{url}/rest/v1/licitacoes_externas?select=id,objeto,fonte&limit=10000", h)
     
     objeto = {l["id"]: l for l in lics}
     out, inicio, passo = [], 0, 1000
     while True:
-        # A mesma URL limpa aqui também
+        # URL LIMPA aqui também: APENAS o nome da tabela
         lote, _ = _get_json(f"{url}/rest/v1/licitacao_itens?select=id,licitacao_id,descricao,categoria_escopo"
                             f"&order=id&offset={inicio}&limit={passo}", h)
         
