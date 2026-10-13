@@ -55,7 +55,7 @@ def _get_json(url: str, headers: dict | None = None, tentativas: int = 3) -> tup
 
 def coletar_supabase(url: str, chave: str) -> list[dict]:
     h = {"apikey": chave, "Authorization": f"Bearer {chave}"}
-    lics, _ = _get_json(f"{url}/rest/v1/licitacoes_externas?select=id,objeto,fonte&limit=10000", h)
+    lics, _ = _get_json(f"{url}/rest/v1/public.licitacoes_externas?select=id,objeto,fonte&limit=10000", h)
     objeto = {l["id"]: l for l in lics}
     out, inicio, passo = [], 0, 1000
     while True:
