@@ -81,17 +81,29 @@ def _get_json(url: str, headers: dict | None = None, tentativas: int = 3) -> tup
 
 
 def coletar_supabase(url: str, chave: str) -> list[dict]:
-    h = {"apikey": chave, "Authorization": f"Bearer {chave}"}
+    # Usa o header Accept-Profile para forçar o schema 'public'
+    h = {
+        "apikey": chave, 
+        "Authorization": f"Bearer {chave}",
+        "Accept-Profile": "public"
+    }
     
-    # 1. Busca as licitações no schema 'public'
-    lics, _ = _get_json(f"{url}/rest/v1/public.licitacoes_externas?select=id,objeto,fonte&limit=10000", h)
+    print(f"[DEBUG] Tentando acessar: {url}/rest/v1/licitacoes_externas")
+    print(f"[DEBUG] Headers: {h}")
+    
+    # URL SEM o prefixo public. - o header faz o trabalho
+    lics, _ = _get_json(f"{url}/rest/v1/licitacoes_externas?select=id,objeto,fonte&limit=10000", h)
+    print(f"[DEBUG] Licitações encontradas: {len(lics)}")
+    
     objeto = {l["id"]: l for l in lics}
     
     out, inicio, passo = [], 0, 1000
     while True:
-        # 2. Busca os itens também no schema 'public' (CORREÇÃO APLICADA AQUI)
-        lote, _ = _get_json(f"{url}/rest/v1/public.licitacao_itens?select=id,licitacao_id,descricao,categoria_escopo"
+        print(f"[DEBUG] Buscando itens a partir do offset {inicio}")
+        lote, _ = _get_json(f"{url}/rest/v1/licitacao_itens?select=id,licitacao_id,descricao,categoria_escopo"
                             f"&order=id&offset={inicio}&limit={passo}", h)
+        
+        print(f"[DEBUG] Itens retornados: {len(lote)}")
         
         for it in lote:
             desc = (it.get("descricao") or "").strip()
@@ -108,6 +120,7 @@ def coletar_supabase(url: str, chave: str) -> list[dict]:
             })
             
         if len(lote) < passo:
+            print(f"[DEBUG] Total de itens coletados: {len(out)}")
             return out
         inicio += passo
 
