@@ -20,6 +20,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from comum import ROTULOS, ler_resposta  # noqa: E402
+import comum  # noqa: E402
+
+ROTULOS = list(ROTULOS)
+
+
+def usar_rotulos(caminho: str) -> None:
+    """Outra tarefa (ex.: chat_intencao): troca o vocabulário de rótulos pelo rotulos.json do dataset."""
+    novos = json.load(open(caminho, encoding="utf-8"))
+    ROTULOS[:] = novos
+    comum.ROTULOS = tuple(novos)  # ler_resposta() valida contra comum.ROTULOS
 
 
 def carregar_gabarito(caminho: str) -> dict[str, str]:
@@ -109,7 +119,18 @@ def main(argv=None) -> None:
     ap.add_argument("--gabarito", required=True)
     ap.add_argument("--pred", action="append", default=[], help="nome=arquivo.jsonl (repetível)")
     ap.add_argument("--baseline-regras", metavar="COLETOR_DIR", help="gera preds_regras.jsonl com o classificador do coletor")
+    ap.add_argument("--rotulos", help="rotulos.json da tarefa (padrão: rótulos de escopo do comum.py)")
+    ap.add_argument("--baseline-do-gabarito", metavar="CAMPO",
+                    help="baseline de regras gravado no próprio gabarito (ex.: baseline_regra do export_tarefas.py)")
     a = ap.parse_args(argv)
+    if a.rotulos:
+        usar_rotulos(a.rotulos)
+    if a.baseline_do_gabarito:
+        with open("preds_regras.jsonl", "w", encoding="utf-8") as f:
+            for l in open(a.gabarito, encoding="utf-8"):
+                r = json.loads(l)
+                f.write(json.dumps({"id": r["id"], "categoria": r.get(a.baseline_do_gabarito)}, ensure_ascii=False) + "\n")
+        a.pred.append("regras=preds_regras.jsonl")
     if a.baseline_regras:
         baseline_regras(a.gabarito, a.baseline_regras, "preds_regras.jsonl")
         a.pred.append("regras=preds_regras.jsonl")
