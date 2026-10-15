@@ -412,11 +412,77 @@ def tipo_documento(texto: str) -> str | None:
         return "exequibilidade"
     if "parecer tecnico" in a and re.search(r"^\s*(?:[a-z]\)\s*)?empresa:", a, re.M) and "solicitacao de parecer" not in a:
         return "parecer_tecnico"
+    if subtipo_decisorio(a):
+        return "documento_decisorio"
     return None
 
 
+SUBTIPOS = [  # (subtipo, padrão no início do documento) — ordem importa
+    ("julgamento_recurso", r"termo de julgamento de recurso|julgamento de recurso administrativo|decisao de recurso"),
+    ("ratificacao_autoridade", r"termo de ratificacao|ratificacao da autoridade superior|autoridade superior.{0,40}decis"),
+    ("decisao_administrativa", r"decisao administrativa"),
+    ("resposta_impugnacao", r"resposta (a |à )?impugnacao|julgamento de impugnacao|decisao.{0,20}impugnacao"),
+    ("resposta_esclarecimento", r"resposta (ao |a )?(pedido de )?esclarecimento"),
+    ("contrarrazoes", r"contrarrazoes|contra-razoes|contra razoes"),
+    ("razoes_recurso", r"razoes (do |de )?recurso|razoes recursais|recurso administrativo"),
+    ("parecer_tecnico_analise", r"parecer tecnico|analise tecnica|termo tecnico de analise"),
+    ("pedido_inabilitacao", r"pedido de inabilitacao"),
+]
+
+
+def subtipo_decisorio(a: str) -> str | None:
+    if re.search(r"solicitacao de parecer|^\s*minuta|aviso de licitacao", a[:600]):
+        return None
+    for nome, rx in SUBTIPOS:
+        if re.search(rx, a[:1500]):
+            return nome
+    return None
+
+
+def extrair_decisorio(texto: str, tr: dict[int, dict]) -> list[dict]:
+    """Documentos de decisão sem formato fixo (pareceres em tabela, julgamentos de recurso, ratificações, impugnações):
+    guarda metadados confiáveis por regra e o texto para rotular com LLM depois (status pendente_llm)."""
+    t = limpo(texto)
+    tj = junta(t)
+    a = ascii_lower(tj)
+    sub = subtipo_decisorio(ascii_lower(t))
+    def parte(rotulo: str) -> tuple[str | None, str | None]:
+        m = re.search(rf"{rotulo}\s*:\s*(.+?)(?:;|\.\s|\s(?:Recorrid|Recorrent|Cnpj|CNPJ))", tj)
+        if not m:
+            return None, None
+        depois = tj[m.end(): m.end() + 60]
+        c = re.search(r"\b(\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2})\b", tj[m.start(): m.end() + 60])
+        return junta(m.group(1)), c.group(1) if c else None
+    recorrente, cnpj_rte = parte("Recorrente")
+    recorrida, cnpj_rda = parte("Recorrid[ao]")
+    licitante, cnpj_lic = parte("Licitante")
+    ementa = re.search(r"EMENTA\s*:?\s*(.+?)(?:\s+I\s*[-–.]\s|\s+RELAT[ÓO]RIO|\s+RATIFICA|$)", tj)
+    lotes = sorted({int(n) for n in re.findall(r"\blote\s*n?[ºo°]?\s*0*(\d{1,3})\b", a)})
+    if re.search(r"negou-se-lhe provimento|nego provimento|improvid|indeferid|improcedente|nao provid", a):
+        resultado = "indeferido"
+    elif re.search(r"\bdou provimento|\bprovid[oa]\b|\bdeferid[oa]\b|\bprocedente\b|acolh(o|id[oa]) o recurso", a):
+        resultado = "deferido"
+    elif sub and sub.startswith("parecer") and "aprovacao condicional" in a:
+        resultado = "aprovado_condicional"
+    elif sub and sub.startswith("parecer") and re.search(r"reprovad|rejeitad|nao atende|nao conform", a):
+        resultado = "reprovacao_total_ou_parcial"
+    elif sub and sub.startswith("parecer") and re.search(r"aprovad|aprovacao|atende", a):
+        resultado = "aprovado"
+    else:
+        resultado = None
+    leis = sorted(set(re.findall(r"art\.?\s*\d+[º°]?(?:,?\s*(?:§|inc(?:iso)?\.?)\s*[\dIVXº°]+)*\s*,?\s*da Lei(?: Federal)?"
+                                 r"(?: n[º°.]?)?\s*[\d.]+/?\d*", tj, re.I)))[:15]
+    itens_mencionados = sorted({int(n) for n in re.findall(r"\bitens?\s+0*(\d{1,3})\b", a)} & set(tr)) if tr else []
+    return [{"subtipo": sub, "data": data_extenso(texto), "lotes": lotes, "itens": itens_mencionados,
+             "recorrente": recorrente, "cnpj_recorrente": cnpj_rte, "recorrida": recorrida, "cnpj_recorrida": cnpj_rda,
+             "licitante": licitante, "cnpj_licitante": cnpj_lic,
+             "ementa": junta(ementa.group(1))[:1500] if ementa else None, "decisao": resultado,
+             "base_legal": leis, "status": "pendente_llm", "texto": tj}]
+
+
 EXTRATORES = {"exequibilidade": extrair_relatorio, "recurso": extrair_recurso,
-              "manifestacao_autoridade": extrair_manifestacao, "parecer_tecnico": extrair_parecer}
+              "manifestacao_autoridade": extrair_manifestacao, "parecer_tecnico": extrair_parecer,
+              "documento_decisorio": extrair_decisorio}
 
 
 def anexar_tr(reg: dict, tr: dict[int, dict]) -> None:
@@ -437,13 +503,18 @@ def main(argv: list[str] | None = None) -> None:
 
     arquivos = sorted(p for p in a.pasta.rglob("*") if p.suffix.lower() in (".pdf", ".txt", ".html") and p.is_file()
                       and p.name != "pagina.html")
-    tr_arq = a.tr or next((p for p in arquivos if re.search(r"termo.de.refer", ascii_lower(p.name))), None)
-    if not tr_arq:
-        sys.exit("Termo de Referência não encontrado: passe --tr.")
-    tr = carregar_tr(ler(tr_arq))
+    def eh_tr(p: Path) -> bool:  # "Termo de Referência", "TR_V_6", "19_TR_Termo..." (não pega "Minuta", "Errata")
+        n = ascii_lower(p.stem)
+        return bool(re.search(r"termo.de.refer|(^|_)tr(_|$)", n)) and not re.search(r"minuta|errata|solicita", n)
+    candidatos = [p for p in arquivos if eh_tr(p)]
+    tr_arq = a.tr or (max(candidatos, key=lambda p: p.stat().st_size) if candidatos else None)
+    tr: dict[int, dict] = carregar_tr(ler(tr_arq)) if tr_arq else {}
     chat = [json.loads(x) for x in a.chat.read_text(encoding="utf-8").splitlines() if x.strip()] if a.chat else []
     lotes_tr = {d["lote"] for d in tr.values()} - {None}
-    print(f"TR: {tr_arq.name} -> {len(tr)} itens" + (f" em {len(lotes_tr)} lotes" if lotes_tr else " (disputa por item)"))
+    if not tr_arq:
+        print("TR: não encontrado (siga sem ligar itens ao TR; passe --tr se souber qual é)")
+    else:
+        print(f"TR: {tr_arq.name} -> {len(tr)} itens" + (f" em {len(lotes_tr)} lotes" if lotes_tr else " (disputa por item)"))
 
     a.saida.parent.mkdir(parents=True, exist_ok=True)
     tipos: Counter[str] = Counter()

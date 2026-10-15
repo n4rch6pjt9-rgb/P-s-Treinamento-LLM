@@ -88,8 +88,15 @@ def linhas_html(bruto: str) -> list[str]:
     out: list[str] = []
     secao = None
     i, n = 0, len(cel)
+    marcador = re.compile(r"^(TROCA DE MENSAGENS|PARTICIPANTES E PROPOSTAS|LANCES|Hist[óo]rico da Sess|LOTE \(|"
+                          r"ITEM - \d|ITEM \d+ - |Eventos do|Argumentos da Negocia|Lance\(s\) de)")
     while i < n:
         l = cel[i]
+        prox = cel[i + 1] if i + 1 < n else ""
+        if marcador.match(prox) and not marcador.match(l):  # nunca colar uma célula num cabeçalho de seção
+            out.append(l)
+            i += 1
+            continue
         if l == "TROCA DE MENSAGENS":  # daqui em diante cada mensagem já vem numa linha
             out.extend(cel[i:])
             break

@@ -17,7 +17,7 @@ Documentos (mapeados do HAR de 15/10/2026, processo 507693, página renderizada 
          {"codigoGeradorArquivo":0,"codigoTipoGerador":<tipoDownLoad>,"codigoUsuarioEntidade":10,
           "parametros":"Total,<id>","reprocessar":false}  -> gera o relatório; repete com o codigoGeradorArquivo
          devolvido até vir {"url"} (o próprio site faz assim, como visitante). Gerar relatório custa processamento
-         do portal: por padrão só Ata Final, Vencedores, Termo de Homologação e Pedidos de Esclarecimento.
+         do portal: um por vez, com pausa; --relatorios limita a lista (padrão: todos os que o processo oferece).
 
 Uso:
     python3 training/coletar_pcp.py --processos training/config/pcp_processos.tsv --saida training/data/pcp
@@ -41,7 +41,7 @@ from pathlib import Path
 API = "https://compras.api.portaldecompraspublicas.com.br/v1/licitacao/{}/chat?pagina={}"
 COMPRAS = "https://compras.api.portaldecompraspublicas.com.br/v2/licitacao/{}"
 GERADOR = "https://conteudo.api.portaldecompraspublicas.com.br/v1/arquivo/download"
-RELATORIOS_PADRAO = ["Ata Final", "Vencedores", "Termo de Homologação", "Pedidos de Esclarecimento"]
+RELATORIOS_PADRAO = ["todos"]  # todos os relatórios que o processo lista; ou nomes, ex.: "Ata Final" "Vencedores"
 UA = "Mozilla/5.0 (compatible; LicitaGym-coleta-publica/0.1)"
 VERSAO = "2026-10-15"
 BRT = timezone(timedelta(hours=-3))
@@ -175,7 +175,7 @@ def coletar_docs(proc: dict, pasta: Path, pausa: float, relatorios: list[str], d
         nome = doc.get("nome") or doc.get("tituloDocumento") or "doc"
         if doc.get("url"):
             alvos.append((i, doc, nome, "arquivo"))
-        elif doc.get("parametros") and nome in relatorios:
+        elif doc.get("parametros") and ("todos" in relatorios or nome in relatorios):
             alvos.append((i, doc, nome, "relatorio"))
     if docs_fornecedores:
         for f in forn:
@@ -263,7 +263,7 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--forcar", action="store_true", help="coleta de novo mesmo homologado já completo")
     ap.add_argument("--so-chat", action="store_true", help="não busca documentos nem itens")
     ap.add_argument("--relatorios", nargs="*", default=RELATORIOS_PADRAO,
-                    help="relatórios gerados a baixar (nomes como aparecem no portal)")
+                    help='relatórios gerados a baixar: "todos" (padrão) ou nomes como aparecem no portal')
     ap.add_argument("--docs-fornecedores", action="store_true",
                     help="baixa também propostas/habilitação anexadas pelos fornecedores (podem ter dados pessoais)")
     a = ap.parse_args(argv)
