@@ -28,7 +28,7 @@ from pathlib import Path
 
 FUSO_BRASILIA = timezone(timedelta(hours=-3))  # sem horário de verão desde 2019
 URL_PROCESSO = "https://sislog.go.gov.br/PanelAquisicao/DetalhesLicitacao?idLicitacao={}"
-VERSAO_REGRAS = "2026-10-15"
+VERSAO_REGRAS = "2026-10-15b"
 
 
 class _TabelaMensagens(HTMLParser):
@@ -94,20 +94,20 @@ REGRAS: list[tuple[str, str, re.Pattern[str]]] = [
     ("diligencia_liberada", "sistema", re.compile(r"^\(Mensagem Automática\).*liberou diligência")),
     ("habilitacao", "sistema", re.compile(r"^\(Mensagem Automática\).*habilitou a documentação")),
     ("mensagem_automatica", "sistema", re.compile(r"^\(Mensagem Automática\)")),
-    ("proposta_excluida", "sistema", re.compile(r"^A proposta de valor R\$ [\d.,]+ do lote .* foi excluid", re.S)),
+    ("proposta_excluida", "sistema", re.compile(r"^A proposta de valor R\$ [\d.,]+ do (?:lote|item) .* foi excluid", re.S)),
     ("lance_exclusao_solicitada", "sistema", re.compile(r"foi solicitado exclusão pelo Fornecedor")),
     ("fechamento_aviso", "sistema", re.compile(r"avisamos que em 5\(cinco\) minutos será iniciado o fechamento")),
     ("fechamento_inicio", "sistema", re.compile(r"foi iniciado o Fechamento com Prorrogação Automática")),
-    ("desempate_inicio", "sistema", re.compile(r"disputa para empat\w+ para o lote")),
-    ("liberado_julgamento", "sistema", re.compile(r"^O Pregoeiro liberou para julgamento o lote")),
+    ("desempate_inicio", "sistema", re.compile(r"disputa para empat\w+ para o (?:lote|item)")),
+    ("liberado_julgamento", "sistema", re.compile(r"^O Pregoeiro liberou para julgamento o (?:lote|item)")),
     ("negociacao_convite", "sistema", re.compile(r"^O Pregoeiro convida o Fornecedor que efetuou o lance")),
     ("negociacao_lance", "sistema", re.compile(r"^O Fornecedor enviou o lance de negociação")),
-    ("desclassificacao", "sistema", re.compile(r"^O Fornecedor que efetuou o lance de [\d.,]+ para o Lote .* foi Desclassificado")),
-    ("habilitacao", "sistema", re.compile(r"^O Fornecedor que efetuou o lance de [\d.,]+ para o Lote .* foi Habilitado")),
-    ("fase_lances_reestabelecida", "sistema", re.compile(r"foi reestabelecido a fase de lances para o lote")),
-    ("vencedor_declarado", "sistema", re.compile(r"declaro vencedor do lote")),
-    ("lote_fracassado", "sistema", re.compile(r"declaro fracassado o lote")),
-    ("lote_deserto", "sistema", re.compile(r"declaro deserto o lote")),
+    ("desclassificacao", "sistema", re.compile(r"^O Fornecedor que efetuou o lance de [\d.,]+ para o (?:Lote|Item) .* foi Desclassificado")),
+    ("habilitacao", "sistema", re.compile(r"^O Fornecedor que efetuou o lance de [\d.,]+ para o (?:Lote|Item) .* foi Habilitado")),
+    ("fase_lances_reestabelecida", "sistema", re.compile(r"foi reestabelecido a fase de lances para o (?:lote|item)")),
+    ("vencedor_declarado", "sistema", re.compile(r"declaro vencedor do (?:lote|item)")),
+    ("lote_fracassado", "sistema", re.compile(r"declaro fracassado o (?:lote|item)")),
+    ("lote_deserto", "sistema", re.compile(r"declaro deserto o (?:lote|item)")),
     ("declaracao_removida", "sistema", re.compile(r"^O Pregoeiro removeu a declaração de vencedor/fracassado")),
     ("intencao_recurso", "sistema", re.compile(r"^O Fornecedor Manifestou a intenção de recurso")),
     ("adjudicacao", "sistema", re.compile(r"foi julgado como adjudicado pelo pregoeiro")),
@@ -128,6 +128,20 @@ REGRAS: list[tuple[str, str, re.Pattern[str]]] = [
     ("cadfor", "pregoeiro", re.compile(r"Cadastro de Fornecedores do Estado - CADFOR")),
     ("alerta_inexequibilidade", "pregoeiro", re.compile(r"item 7\.11 do Edital, que trata sobre a Inexequibilidade")),
     ("negociacao_pedido_ajuste", "pregoeiro", re.compile(r"ajuste dos valores unitários|ABA \"?NEGOCIAÇÃO\"?", re.I)),
+    # pregão por item (SES-GO 2025, ex.: 111606)
+    ("item_deserto", "sistema", re.compile(r"Item \(\d+\) foi julgado como desert", re.I)),
+    ("item_fracassado", "sistema", re.compile(r"Item \(\d+\) foi julgado como fracassad", re.I)),
+    ("alerta_valor_acima_estimado", "sistema", re.compile(r"disputa acima de \d+% para o item", re.I)),
+    ("convocacao_proposta", "pregoeiro", re.compile(r"^Item \d+ aberto para (que )?(a )?empresa", re.I)),
+    ("parecer_publicado", "pregoeiro", re.compile(r"(doc\.?|documento)\s*\d+.{0,40}parecer t[ée]cnico|parecer t[ée]cnico\s*[-(]?\s*doc", re.I)),
+    ("desclassificacao_aviso", "pregoeiro", re.compile(r"^vou desclassificar", re.I)),
+    ("fase_lances_reestabelecida_aviso", "pregoeiro", re.compile(r"(re)?(e)?stabelec\w* a fase de lances|fase de lances (para o item \d+ )?ser[áa] (re)?(e)?stabelecida", re.I)),
+    ("sessao_retomada", "pregoeiro", re.compile(r"dar continuidade [àa] sess[ãa]o|sess[ãa]o ser[áa] reaberta", re.I)),
+    ("julgamento_aviso", "pregoeiro", re.compile(r"julgamento (do preg[ãa]o eletr[ôo]nico )?(acontecer[áa]|come[çc]ou)", re.I)),
+    ("sem_intencao_recurso", "pregoeiro", re.compile(r"n[ãa]o houve manifesta[çc][ãa]o de inten[çc][ãa]o de recurso", re.I)),
+    ("sessao_abertura", "pregoeiro", re.compile(r"fase de lances (iniciada|ser[áa] iniciada)", re.I)),
+    ("citacao_edital", "pregoeiro", re.compile(r"^(conforme|de acordo com) (o )?item [\d.]+\s*(do )?edital", re.I)),
+    ("liberado_julgamento_aviso", "pregoeiro", re.compile(r"vou liberar o item para julgamento", re.I)),
     # 15/10/2026: fórmulas de outros pregoeiros do SISLOG (caso 104744, SEEL 2024). Regras amplas, depois das fixas.
     ("help_desk", "sistema", re.compile(r"^Em atendimento ao (Help Desk|HD)\s*\d+", re.I)),
     ("pedido_cancelamento_lance", "fornecedor",
