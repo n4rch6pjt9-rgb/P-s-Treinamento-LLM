@@ -1,0 +1,26 @@
+# Processos SISLOG/GO no banco (licitacoes_externas, raw.usuario_nome = SISLOG), extraídos em 15/10/2026.
+# idLicitacao = número do numero_edital do PNCP. Homologados primeiro (core do treinamento).
+104744  # Pregão 104744/2024 | homologado 2024-10-07
+111606  # Pregão 111606/2025 | homologado 2025-05-15
+112444  # Pregão 112444/2025 | homologado 2025-07-10
+108902  # Pregão 108902/2024 | homologado 2025-07-25
+115450  # Dispensa 115450/2025 | homologado 2025-09-25
+113705  # Pregão 113705/2025 | homologado 2025-09-29
+115934  # Dispensa 115934/2025 | homologado 2025-11-10
+114655  # Pregão 114655/2025 | homologado 2025-11-14
+116918  # Dispensa 116918/2025 | homologado 2025-11-17
+116068  # Pregão 116068/2025 | homologado 2025-11-27
+114285  # Pregão 114285/2025 | homologado 2025-12-18
+117073  # Pregão 117073/2025 | homologado 2025-12-18
+117288  # Pregão 117288/2025 | homologado 2026-01-19
+118246  # Dispensa 118246/2026 | homologado 2026-02-06
+# sem homologação no banco
+108708  # Pregão 108708/2024
+121780  # Pregão 121780/2026
+121312  # Pregão 121312/2026
+111138  # Pregão 111138/2024
+117969  # Pregão 117969/2025
+118672  # Pregão 118672/2026
+117540  # Pregão 117540/2025
+111026  # Pregão 111026/2024
+105661  # Pregão 105661/2024
