@@ -26,30 +26,28 @@ RAIZ = Path(__file__).resolve().parents[3]
 DADOS = RAIZ / "training" / "data"
 SAIDA = DADOS / "curadoria"
 PORTAIS = ("sislog", "bll", "pcp")
-VERSAO_TAXONOMIA = "2026-10-15"
 
-# Intenção da mensagem: taxonomia curta para revisão humana (os 55 rótulos de regra continuam no rotulo_regra).
-INTENCOES = [
-    {"id": "pergunta_fornecedor", "nome": "Pergunta / dúvida do fornecedor", "dica": "esclarecimento, como anexar, prazo de quê"},
-    {"id": "pedido_prazo", "nome": "Pedido de prazo", "dica": "dilação para proposta, catálogo, documentos"},
-    {"id": "desistencia_cancelamento", "nome": "Cancelamento de lance / desistência", "dica": "lance errado, pede desclassificação"},
-    {"id": "negociacao_valor", "nome": "Negociação de valor", "dica": "contraproposta, 'já estamos no mínimo'"},
-    {"id": "envio_documentos", "nome": "Envio de documentos", "dica": "'anexado', proposta readequada enviada"},
-    {"id": "contestacao_concorrente", "nome": "Contestação de concorrente", "dica": "pede verificação/inabilitação de outra empresa"},
-    {"id": "argumento_recurso", "nome": "Argumento de recurso", "dica": "razões, contrarrazões, intenção motivada"},
-    {"id": "instrucao_pregoeiro", "nome": "Instrução / convocação do pregoeiro", "dica": "orienta, convoca, cobra documento"},
-    {"id": "decisao_pregoeiro", "nome": "Decisão do pregoeiro", "dica": "aceita, recusa, desclassifica com motivo"},
-    {"id": "agenda_sessao", "nome": "Agenda da sessão", "dica": "suspende, retoma, marca nova data"},
-    {"id": "problema_sistema", "nome": "Problema no sistema", "dica": "instabilidade, help desk, erro do portal"},
-    {"id": "cortesia", "nome": "Cortesia", "dica": "bom dia, obrigado, ok"},
-    {"id": "outro", "nome": "Outro", "dica": "use a observação"},
-]
-MARCAS = [
-    {"id": "erro_fornecedor", "nome": "Erro do fornecedor"},
-    {"id": "erro_administracao", "nome": "Erro da administração"},
-    {"id": "questao_legal", "nome": "Questão legal (Jurídico)"},
-    {"id": "exemplo_ouro", "nome": "Exemplo ouro para treino"},
-]
+# Taxonomia (intenções, temas, sinais e migração de versões antigas) vem de um arquivo só, o mesmo que o export do
+# Tunix lê: training/config/taxonomia_chat.json. Os rótulos de regra continuam no rotulo_regra de cada mensagem.
+_TAX = json.loads((RAIZ / "training" / "config" / "taxonomia_chat.json").read_text(encoding="utf-8"))
+VERSAO_TAXONOMIA = _TAX["versao"]
+INTENCOES = _TAX["intencoes"]
+TEMAS = _TAX["temas"]
+SINAIS = _TAX["sinais"]
+MARCAS = SINAIS  # nome antigo: a aba de decisões e as revisões de 2026-10-15 gravaram os sinais como "marcas"
+_IDS_INTENCAO = {i["id"] for i in INTENCOES}
+
+
+def intencao_vigente(rev: dict | None) -> str | None:
+    """Intenção da revisão na taxonomia atual. None = precisa revisar de novo (categoria foi dividida)."""
+    if not rev:
+        return None
+    versao, intencao = rev.get("taxonomia"), rev.get("intencao")
+    if versao != VERSAO_TAXONOMIA:
+        mapa = _TAX.get("migracao", {}).get(versao, {})
+        if intencao in mapa:
+            intencao = mapa[intencao]
+    return intencao if intencao in _IDS_INTENCAO else None
 DECISOES = ["deferido", "indeferido", "aprovado", "aprovado_condicional", "reprovado", "reprovado_parcial",
             "sem_razoes", "nao_e_decisao"]
 MOTIVOS = ["valor_inexequivel", "certificacao_ausente", "especificacao_divergente", "marca_modelo_ausente",
@@ -120,6 +118,21 @@ def _gabarito(nome: str) -> dict:
     return _cache[nome]
 
 
+def _sugestoes() -> dict:
+    """Sugestões do Claude (training/rotular_claude.py), só da taxonomia atual; a mais recente de cada id vale."""
+    p = SAIDA / "sugestoes_chat.jsonl"
+    if not p.exists():
+        return {}
+    mt = p.stat().st_mtime
+    if _cache.get("sug_mt") != mt:
+        s = {}
+        for r in _ler_jsonl(p):
+            if r.get("taxonomia") == VERSAO_TAXONOMIA and r.get("intencao") in _IDS_INTENCAO:
+                s[r["id"]] = r
+        _cache["sug"], _cache["sug_mt"] = s, mt
+    return _cache["sug"]
+
+
 def _entra_na_fila(m: dict) -> bool:
     if m.get("autor") == "sistema":
         return False
@@ -135,49 +148,71 @@ def _resumo_msg(m: dict) -> dict:
 
 @router.get("/taxonomia")
 def taxonomia():
-    return {"versao": VERSAO_TAXONOMIA, "intencoes": INTENCOES, "marcas": MARCAS, "decisoes": DECISOES,
-            "motivos": MOTIVOS}
+    return {"versao": VERSAO_TAXONOMIA, "intencoes": INTENCOES, "temas": TEMAS, "sinais": SINAIS,
+            "marcas": MARCAS, "decisoes": DECISOES, "motivos": MOTIVOS}
 
 
 @router.get("/stats")
 def stats():
-    chat, gab = _chat(), _gabarito("gabarito_chat.jsonl")
+    chat, gab, sug = _chat(), _gabarito("gabarito_chat.jsonl"), _sugestoes()
     por_portal: dict = {}
+    divergentes = 0
     for chave, msgs in chat.items():
         portal = chave.split(":")[0]
-        s = por_portal.setdefault(portal, {"processos": 0, "mensagens": 0, "na_fila": 0, "revisadas": 0})
+        s = por_portal.setdefault(portal, {"processos": 0, "mensagens": 0, "na_fila": 0, "revisadas": 0,
+                                           "a_rever": 0})
         s["processos"] += 1
         s["mensagens"] += len(msgs)
         for m in msgs:
+            if m["id"] in gab and m["id"] in sug and intencao_vigente(gab[m["id"]]) not in (None, sug[m["id"]]["intencao"]):
+                divergentes += 1
+            if m["id"] in gab and intencao_vigente(gab[m["id"]]) is None:
+                s["a_rever"] += 1  # revisada na taxonomia antiga numa categoria que foi dividida
             if _entra_na_fila(m):
                 s["na_fila"] += 1
-                if m["id"] in gab:
+                if m["id"] in gab and intencao_vigente(gab[m["id"]]):
                     s["revisadas"] += 1
     dec, gdec = _decisoes(), _gabarito("gabarito_decisoes.jsonl")
-    return {"por_portal": por_portal, "decisoes": len(dec), "decisoes_revisadas": sum(1 for d in dec if d["id"] in gdec),
+    return {"por_portal": por_portal, "divergentes": divergentes, "decisoes": len(dec), "decisoes_revisadas": sum(1 for d in dec if d["id"] in gdec),
             "processos": sorted(chat.keys())}
 
 
 @router.get("/fila")
 def fila(offset: int = 0, limite: int = 20, portal: str = "", processo: str = "", autor: str = "",
-         incluir_revisadas: bool = False, contexto: int = 3):
-    chat, gab = _chat(), _gabarito("gabarito_chat.jsonl")
+         incluir_revisadas: bool = False, rever: bool = False, contexto: int = 3, ordem: str = "",
+         busca: str = "", divergentes: bool = False):
+    """rever=True: só as já revisadas cuja categoria foi dividida na taxonomia nova (ex.: contestação, outro).
+    ordem="incerteza": primeiro as que o Claude sugeriu com confiança baixa, depois média, alta e sem sugestão."""
+    chat, gab, sug = _chat(), _gabarito("gabarito_chat.jsonl"), _sugestoes()
     itens = []
     for chave, msgs in chat.items():
         p, proc = chave.split(":", 1)
         if (portal and p != portal) or (processo and proc != processo):
             continue
         for i, m in enumerate(msgs):
-            if not _entra_na_fila(m) or (autor and m.get("autor") != autor):
+            rev = gab.get(m["id"])
+            a_rever = rev is not None and intencao_vigente(rev) is None
+            if divergentes:  # revisão humana válida que discorda da sugestão do Claude
+                if rev is None or m["id"] not in sug or intencao_vigente(rev) in (None, sug[m["id"]]["intencao"]):
+                    continue
+            elif rever:
+                if not a_rever:
+                    continue
+            elif not _entra_na_fila(m) or (rev is not None and not a_rever and not incluir_revisadas):
                 continue
-            if m["id"] in gab and not incluir_revisadas:
+            if autor and (rev or {}).get("autor", m.get("autor")) != autor:
+                continue
+            if busca and busca.lower() not in (m.get("texto") or "").lower():
                 continue
             itens.append({**_resumo_msg(m), "portal": p, "processo": proc,
-                          "lotes": m.get("lotes") or [], "revisao": gab.get(m["id"]),
+                          "lotes": m.get("lotes") or [], "revisao": gab.get(m["id"]), "sugestao": sug.get(m["id"]),
                           "antes": [_resumo_msg(x) for x in msgs[max(0, i - contexto): i]],
                           "depois": [_resumo_msg(x) for x in msgs[i + 1: i + 1 + max(0, contexto - 1)]]})
     # fornecedor primeiro: é o lado que mais falta no treino
     itens.sort(key=lambda x: (x["autor"] != "fornecedor", x["portal"], x["processo"], x["data_hora"] or ""))
+    if ordem == "incerteza":
+        peso = {"baixa": 0, "media": 1, "alta": 2}
+        itens.sort(key=lambda x: peso.get((x["sugestao"] or {}).get("confianca"), 3))  # estável: mantém o resto
     return {"total": len(itens), "offset": offset, "itens": itens[offset: offset + limite]}
 
 
@@ -201,9 +236,13 @@ def decisoes(offset: int = 0, limite: int = 10, incluir_revisadas: bool = False)
 class RevisaoChat(BaseModel):
     id: str
     intencao: str
-    marcas: list[str] = Field(default_factory=list)
+    temas: list[str] = Field(default_factory=list)
+    sinais: list[str] = Field(default_factory=list)
+    marcas: list[str] = Field(default_factory=list)  # nome antigo de "sinais"; ainda aceito
     autor_corrigido: str | None = None
     obs: str = ""
+    sugestao_intencao: str | None = None  # o que o Claude sugeriu (para medir quanto a sugestão é aceita)
+    sugestao_modelo: str | None = None
 
 
 class LoteChat(BaseModel):
@@ -235,13 +274,14 @@ def _anexar(nome: str, linhas: list[dict]) -> None:
 def revisar(lote: LoteChat):
     if not lote.revisado_por.strip():
         raise HTTPException(422, "informe revisado_por")
-    validas = {i["id"] for i in INTENCOES}
-    marcas = {m["id"] for m in MARCAS}
+    temas_ok = {t["id"] for t in TEMAS}
+    sinais_ok = {s["id"] for s in SINAIS}
     idx = {m["id"]: m for msgs in _chat().values() for m in msgs}
     agora = datetime.now(timezone.utc).isoformat(timespec="seconds")
     linhas = []
     for r in lote.revisoes:
-        if r.intencao not in validas or not set(r.marcas) <= marcas:
+        sinais = sorted(set(r.sinais) | set(r.marcas))
+        if r.intencao not in _IDS_INTENCAO or not set(r.temas) <= temas_ok or not set(sinais) <= sinais_ok:
             raise HTTPException(422, f"rótulo inválido em {r.id}")
         m = idx.get(r.id)
         if m is None:
@@ -249,7 +289,8 @@ def revisar(lote: LoteChat):
         linhas.append({"id": r.id, "portal": m["_portal"], "processo": m["_processo"],
                        "data_hora": m.get("data_hora_brasilia"), "autor": r.autor_corrigido or m.get("autor"),
                        "empresa": m.get("empresa"), "texto": m.get("texto"), "rotulo_regra": m.get("rotulo"),
-                       "intencao": r.intencao, "marcas": r.marcas, "obs": r.obs,
+                       "intencao": r.intencao, "temas": r.temas, "sinais": sinais, "marcas": sinais, "obs": r.obs,
+                       "sugestao_intencao": r.sugestao_intencao, "sugestao_modelo": r.sugestao_modelo,
                        "revisado_por": lote.revisado_por.strip(), "revisado_em": agora,
                        "taxonomia": VERSAO_TAXONOMIA})
     _anexar("gabarito_chat.jsonl", linhas)

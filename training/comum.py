@@ -13,7 +13,9 @@ ROTULOS = ("forte", "fraco", "piso", "borracha", "obra_piso", "manutencao", "for
 DESCRICAO_ROTULOS = {
     "forte": "equipamento de academia/ginástica/musculação (esteira, leg press, anilha, halter...)",
     "fraco": "material esportivo genérico (bola, rede, uniforme, troféu...)",
-    "piso": "piso emborrachado, placa/tapete de borracha, piso SBR/EPDM, grama sintética (fornecimento)",
+    "piso": ("piso de borracha (placa/manta/tapete emborrachado, SBR/EPDM, grânulos de pneu reciclado) para academia, "
+             "crossfit, playground, escola, haras; grama sintética (fornecimento). Piso modular plástico PP/TPE "
+             "encaixável de quadra/ginásio NÃO é piso: é fora"),
     "borracha": "borracha granulada/raspa/infill ou compra direta de borracha",
     "obra_piso": "obra/instalação de quadra, campo ou piso (monolítico, substituição de gramado...)",
     "manutencao": "peça de reposição de aparelho de academia (cabo de aço, polia, estofamento...)",
