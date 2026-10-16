@@ -12,3 +12,6 @@ training/data/
 __pycache__/
 .pytest_cache/
 training/data/sislog/
+
+# ambientes locais
+.venv/
