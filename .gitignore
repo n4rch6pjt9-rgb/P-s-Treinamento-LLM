@@ -11,3 +11,6 @@ coverage/
 training/data/
 __pycache__/
 .pytest_cache/
+
+# ambientes locais
+.venv/

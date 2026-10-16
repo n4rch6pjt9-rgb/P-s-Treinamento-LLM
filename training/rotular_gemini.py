@@ -8,7 +8,9 @@ salve como data/rotulos.csv. Só linhas revisadas entram no treino (export_datas
 Onde regra e Gemini discordam, a linha sobe para o topo (revise primeiro).
 
   pip install google-genai
-  export GEMINI_API_KEY=...
+  # AI Studio:  export GEMINI_API_KEY=...
+  # Vertex AI (créditos do GCP, autenticação pelo gcloud ADC):
+  #   export GOOGLE_GENAI_USE_VERTEXAI=true GOOGLE_CLOUD_PROJECT=licitagym GOOGLE_CLOUD_LOCATION=us-central1
   python training/rotular_gemini.py --limite 500
 """
 from __future__ import annotations
@@ -66,7 +68,7 @@ def main(argv=None) -> None:
     a = ap.parse_args(argv)
 
     from google import genai
-    cliente = genai.Client()  # lê GEMINI_API_KEY do ambiente
+    cliente = genai.Client()  # GEMINI_API_KEY, ou Vertex se GOOGLE_GENAI_USE_VERTEXAI=true
 
     cand = [json.loads(l) for l in open(DADOS / "candidatos.jsonl", encoding="utf-8")]
     ja = set()
@@ -79,11 +81,15 @@ def main(argv=None) -> None:
     sugestao: dict[str, str] = {}
     for i in range(0, len(pend), a.lote):
         lote = pend[i : i + a.lote]
-        try:
-            sugestao.update(classificar_lote(cliente, a.modelo, lote))
-        except Exception as e:  # noqa: BLE001
-            print(f"lote {i // a.lote}: {e}", file=sys.stderr)
-            time.sleep(10)
+        for tentativa in range(5):  # 429/503 do Vertex são comuns em lote: espera e tenta de novo
+            try:
+                sugestao.update(classificar_lote(cliente, a.modelo, lote))
+                break
+            except Exception as e:  # noqa: BLE001
+                espera = min(60, 5 * 2 ** tentativa)
+                print(f"lote {i // a.lote} (tentativa {tentativa + 1}/5): {type(e).__name__}: {str(e)[:200]}; "
+                      f"aguardando {espera}s", file=sys.stderr)
+                time.sleep(espera)
         print(f"{min(i + a.lote, len(pend))}/{len(pend)}", end="\r")
 
     linhas = []

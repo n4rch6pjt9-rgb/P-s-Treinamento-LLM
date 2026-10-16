@@ -14,6 +14,7 @@ import { ComponentDetailModal } from './components/ComponentDetailModal';
 import { PipelineSimulator } from './components/PipelineSimulator';
 import { ConfigPlayground } from './components/ConfigPlayground';
 import { SearchModal } from './components/SearchModal';
+import { CuradoriaChat } from './components/CuradoriaChat';
 import { SectionId } from './types';
 import { 
   Layers, 
@@ -24,14 +25,17 @@ import {
   FileText, 
   Play, 
   Settings, 
-  Zap
+  Zap,
+  ClipboardCheck
 } from 'lucide-react';
 
 export default function App() {
   const [activeSection, setActiveSection] = useState<SectionId>('overview');
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'document' | 'simulator' | 'config'>('document');
+  const [viewMode, setViewMode] = useState<'document' | 'simulator' | 'config' | 'curadoria'>(
+    () => (typeof window !== 'undefined' && window.location.hash === '#curadoria' ? 'curadoria' : 'document')
+  );
 
   // Sincroniza a navegação entre as seções
   const scrollToSection = (sectionId: SectionId) => {
@@ -125,6 +129,17 @@ export default function App() {
               <Settings className="w-3.5 h-3.5 text-slate-600" />
               Especificações & Gerador de Config
             </button>
+            <button
+              onClick={() => setViewMode('curadoria')}
+              className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                viewMode === 'curadoria'
+                  ? 'bg-white text-emerald-900 shadow-2xs font-bold'
+                  : 'hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
+            >
+              <ClipboardCheck className="w-3.5 h-3.5 text-emerald-600" />
+              Curadoria de Rótulos
+            </button>
           </div>
 
           <div className="flex items-center gap-3 text-xs text-slate-500 font-mono">
@@ -135,6 +150,9 @@ export default function App() {
             </span>
           </div>
         </div>
+
+        {/* VISÃO: CURADORIA DE RÓTULOS (API local em src/api) */}
+        {viewMode === 'curadoria' && <CuradoriaChat />}
 
         {/* VISÃO 1: DOCUMENTAÇÃO COMPLETA */}
         {viewMode === 'document' && (

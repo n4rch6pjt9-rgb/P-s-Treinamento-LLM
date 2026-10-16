@@ -72,3 +72,21 @@ def test_montar_usa_so_rotulos_revisados(tmp_path, monkeypatch):
     assert linhas == 15  # só as revisadas que existem nos candidatos
     resumo = json.loads((tmp_path / "resumo.json").read_text(encoding="utf-8"))
     assert sum(v["total"] for v in resumo.values()) == 15
+
+
+def test_avaliar_por_origem_usa_licitagym_no_aceite():
+    gab = {"lg-1": "forte", "lg-2": "piso", "sesc-sp-1-2": "fora", "sesc-sp-3-4": "fraco"}
+    pred = {"lg-1": "forte", "lg-2": "piso", "sesc-sp-1-2": "forte", "sesc-sp-3-4": "forte"}
+    r = avaliar.avaliar_por_origem(gab, pred)
+    assert r["aceite"] == "licitagym"
+    assert set(r["por_origem"]) == {"licitagym", "sesc"}
+    assert r["por_origem"]["licitagym"]["macro_f1"] == 1.0
+    assert r["por_origem"]["sesc"]["acuracia"] == 0.0
+    assert avaliar.macro_f1_aceite(r) == 1.0
+    assert r["macro_f1"] < 1.0
+
+
+def test_avaliar_sem_licitagym_cai_para_total():
+    r = avaliar.avaliar_por_origem({"sesc-rj-1-1": "fora"}, {"sesc-rj-1-1": "fora"})
+    assert r["aceite"] == "total"
+    assert avaliar.macro_f1_aceite(r) == r["macro_f1"]

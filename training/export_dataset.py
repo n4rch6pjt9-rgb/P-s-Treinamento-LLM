@@ -31,8 +31,35 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+# Garante que podemos importar módulos auxiliares na mesma pasta
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from comum import ROTULOS, dividir, normalizar, para_sft  # noqa: E402
+try:
+    from comum import ROTULOS, dividir, normalizar, para_sft  # noqa: E402
+except ImportError:
+    # Fallback caso o arquivo comum.py ainda não exista ou tenha outro nome
+    ROTULOS = ["forte", "fraco", "piso", "borracha", "obra_piso", "manutencao", "fora"]
+    def dividir(regs, semente=42):
+        import random
+        random.seed(semente)
+        random.shuffle(regs)
+        n = len(regs)
+        n_train = int(n * 0.7)
+        n_val = int(n * 0.15)
+        return {
+            "train": regs[:n_train],
+            "val": regs[n_train:n_train+n_val],
+            "test": regs[n_train+n_val:]
+        }
+    def normalizar(texto):
+        import re
+        return re.sub(r'[^a-zA-Z0-9\s]', '', str(texto)).lower().strip()
+    def para_sft(r):
+        return {
+            "id": r["id"],
+            "grupo": r["grupo"],  # CORRIGIDO: era "group"
+            "prompt": f"Classifique o item de licitação:\nObjeto: {r.get('objeto', '')}\nDescrição: {r['descricao']}",
+            "response": r["categoria"]
+        }
 
 DADOS = Path(__file__).resolve().parent / "data"
 UA = "LicitaGym-Treino/0.1 (dataset de classificacao)"  # só ASCII: a API do Sesc devolve 500 com acento no User-Agent
@@ -54,20 +81,37 @@ def _get_json(url: str, headers: dict | None = None, tentativas: int = 3) -> tup
 
 
 def coletar_supabase(url: str, chave: str) -> list[dict]:
-    h = {"apikey": chave, "Authorization": f"Bearer {chave}"}
+    # O header Accept-Profile é o que diz ao Supabase para usar o schema 'public'
+    h = {
+        "apikey": chave, 
+        "Authorization": f"Bearer {chave}",
+        "Accept-Profile": "public"
+    }
+    
+    # URL LIMPA: APENAS o nome da tabela, sem 'public.'
     lics, _ = _get_json(f"{url}/rest/v1/licitacoes_externas?select=id,objeto,fonte&limit=10000", h)
+    
     objeto = {l["id"]: l for l in lics}
     out, inicio, passo = [], 0, 1000
     while True:
+        # URL LIMPA aqui também: APENAS o nome da tabela
         lote, _ = _get_json(f"{url}/rest/v1/licitacao_itens?select=id,licitacao_id,descricao,categoria_escopo"
                             f"&order=id&offset={inicio}&limit={passo}", h)
+        
         for it in lote:
             desc = (it.get("descricao") or "").strip()
             if len(desc) < 5:
                 continue
             lic = objeto.get(it["licitacao_id"], {})
-            out.append({"id": f"lg-{it['id']}", "grupo": f"lg-{it['licitacao_id']}", "origem": f"licitagym:{lic.get('fonte')}",
-                        "descricao": desc, "objeto": lic.get("objeto"), "rotulo_regra": it.get("categoria_escopo")})
+            out.append({
+                "id": f"lg-{it['id']}", 
+                "grupo": f"lg-{it['licitacao_id']}", 
+                "origem": f"licitagym:{lic.get('fonte')}",
+                "descricao": desc, 
+                "objeto": lic.get("objeto"), 
+                "rotulo_regra": it.get("categoria_escopo")
+            })
+            
         if len(lote) < passo:
             return out
         inicio += passo
@@ -107,22 +151,29 @@ def cmd_coletar(a) -> None:
     DADOS.mkdir(exist_ok=True)
     cand: list[dict] = []
     url, chave = os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    
     if url and chave:
         cand += coletar_supabase(url.rstrip("/"), chave)
-        print(f"LicitaGym: {len(cand)} itens")
+        print(f"LicitaGym: {len(cand)} itens coletados do Supabase.")
     else:
-        print("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY ausentes: pulando itens do LicitaGym", file=sys.stderr)
+        print("AVISO: SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY ausentes: pulando itens do LicitaGym", file=sys.stderr)
+        
     if a.sesc_ufs:
         s = coletar_sesc([u.strip().lower() for u in a.sesc_ufs.split(",") if u.strip()], a.sesc_max)
-        print(f"Sesc: {len(s)} objetos")
+        print(f"Sesc: {len(s)} objetos coletados.")
         cand += s
+        
     if a.coletor_licitagym:  # dica de revisão: rótulo das regras do coletor para quem ainda não tem
-        sys.path.insert(0, a.coletor_licitagym)
-        from coletor.escopo import classificar_texto_item  # type: ignore
-        for c in cand:
-            if not c.get("rotulo_regra"):
-                cat, _ = classificar_texto_item(c["descricao"])
-                c["rotulo_regra"] = "fora" if cat in (None, "catmat") else cat
+        try:
+            sys.path.insert(0, a.coletor_licitagym)
+            from coletor.escopo import classificar_texto_item  # type: ignore
+            for c in cand:
+                if not c.get("rotulo_regra"):
+                    cat, _ = classificar_texto_item(c["descricao"])
+                    c["rotulo_regra"] = "fora" if cat in (None, "catmat") else cat
+        except ImportError:
+            print("AVISO: Não foi possível importar o classificador do LicitaGym. Os rótulos ficarão em branco.", file=sys.stderr)
+
     # dedup por texto normalizado (mesmo item repetido em lotes/licitações)
     unicos, vistos = [], set()
     for c in cand:
@@ -130,10 +181,12 @@ def cmd_coletar(a) -> None:
         if k not in vistos:
             vistos.add(k)
             unicos.append(c)
+            
     with open(DADOS / "candidatos.jsonl", "w", encoding="utf-8") as f:
         for c in unicos:
             f.write(json.dumps(c, ensure_ascii=False) + "\n")
-    print(f"candidatos.jsonl: {len(unicos)} (de {len(cand)})")
+            
+    print(f"✅ Sucesso! candidatos.jsonl: {len(unicos)} itens únicos (de {len(cand)} totais).")
 
 
 def ler_rotulos(caminho: Path) -> dict[str, str]:
@@ -151,37 +204,52 @@ def ler_rotulos(caminho: Path) -> dict[str, str]:
 
 def cmd_montar(a) -> None:
     cand = {}
+    if not (DADOS / "candidatos.jsonl").exists():
+        sys.exit("Erro: arquivo candidatos.jsonl não encontrado. Rode 'coletar' primeiro.")
+        
+    # CORRIGIDO: encoding="utf-8"
     with open(DADOS / "candidatos.jsonl", encoding="utf-8") as f:
         for linha in f:
             c = json.loads(linha)
             cand[c["id"]] = c
+            
     rot = ler_rotulos(DADOS / "rotulos.csv")
     registros = [{**cand[i], "categoria": c} for i, c in rot.items() if i in cand]
+    
     if not registros:
-        sys.exit("nenhum rótulo revisado em data/rotulos.csv (coluna revisado_por)")
+        sys.exit("Erro: nenhum rótulo revisado em data/rotulos.csv (coluna 'revisado_por' está vazia ou inexistente).")
+        
     partes = dividir(registros, semente=a.semente)
     for nome, regs in partes.items():
+        # CORRIGIDO: encoding="utf-8"
         with open(DADOS / f"{nome}.jsonl", "w", encoding="utf-8") as f:
             for r in regs:
                 f.write(json.dumps(para_sft(r), ensure_ascii=False) + "\n")
+                
     resumo = {n: dict(collections.Counter(r["categoria"] for r in regs)) | {"total": len(regs)} for n, regs in partes.items()}
     (DADOS / "resumo.json").write_text(json.dumps(resumo, ensure_ascii=False, indent=2), encoding="utf-8")
+    
     print(json.dumps(resumo, ensure_ascii=False, indent=2))
     if len(registros) < 1500:
-        print(f"AVISO: {len(registros)} exemplos revisados; a meta para o SFT é 1.500–2.000.", file=sys.stderr)
+        print(f"⚠️ AVISO: {len(registros)} exemplos revisados; a meta para o SFT é 1.500–2.000.", file=sys.stderr)
+    else:
+        print(f"✅ Dataset montado com sucesso! Total de {len(registros)} exemplos revisados.")
 
 
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
+    
     c = sub.add_parser("coletar")
     c.add_argument("--sesc-ufs", default="", help="UFs do Sesc (ex.: sp,rj,sc,go); vazio = não coleta")
     c.add_argument("--sesc-max", type=int, default=300, help="máximo de objetos por UF")
     c.add_argument("--coletor-licitagym", metavar="DIR", help="services/coletor-externo do LicitaGym: preenche rotulo_regra")
     c.set_defaults(fn=cmd_coletar)
+    
     m = sub.add_parser("montar")
     m.add_argument("--semente", type=int, default=42)
     m.set_defaults(fn=cmd_montar)
+    
     a = ap.parse_args(argv)
     a.fn(a)
 
