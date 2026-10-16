@@ -1,0 +1,217 @@
+{
+  "versao": "2026-10-16",
+  "nota": "Fonte única da taxonomia do chat: lida pela API de curadoria (src/api/routes/curadoria_chat.py) e pelo export do Tunix (training/export_tarefas.py). Intenção = 1 por mensagem (é o que o modelo aprende). Temas e sinais = vários por mensagem (análise; não entram no treino por enquanto).",
+  "intencoes": [
+    {
+      "id": "pergunta_esclarecimento",
+      "nome": "Pergunta / esclarecimento",
+      "dica": "dúvida sobre regra, etapa, prazo ou funcionamento",
+      "lados": [
+        "fornecedor"
+      ]
+    },
+    {
+      "id": "pedido_prazo",
+      "nome": "Pedido de prazo",
+      "dica": "pede mais tempo para proposta, catálogo, documentos ou amostra",
+      "lados": [
+        "fornecedor"
+      ]
+    },
+    {
+      "id": "envio_documentos",
+      "nome": "Envio de documentos / amostra",
+      "dica": "avisa que enviou, anexou ou vai entregar proposta, planilha, documento ou amostra física",
+      "lados": [
+        "fornecedor"
+      ]
+    },
+    {
+      "id": "negociacao_valor",
+      "nome": "Negociação de valor",
+      "dica": "contraproposta, 'já estamos no mínimo'",
+      "lados": [
+        "fornecedor"
+      ]
+    },
+    {
+      "id": "desistencia_cancelamento",
+      "nome": "Cancelamento / desistência",
+      "dica": "cancela lance errado, desiste da proposta ou desiste de contestar/recorrer ('pode seguir', 'não vamos questionar')",
+      "lados": [
+        "fornecedor"
+      ]
+    },
+    {
+      "id": "contestacao_concorrente",
+      "nome": "Contesta concorrente",
+      "dica": "aponta problema na proposta, marca, preço ou documento de OUTRA empresa",
+      "lados": [
+        "fornecedor"
+      ]
+    },
+    {
+      "id": "contestacao_decisao",
+      "nome": "Contesta decisão",
+      "dica": "questiona decisão do pregoeiro: desclassificação, reprovação, aceite de outro",
+      "lados": [
+        "fornecedor"
+      ]
+    },
+    {
+      "id": "reclamacao_procedimento",
+      "nome": "Reclama do procedimento",
+      "dica": "critica a condução: aviso prévio, horário, etapa pulada, falta de transparência",
+      "lados": [
+        "fornecedor"
+      ]
+    },
+    {
+      "id": "defesa_propria",
+      "nome": "Defende a própria proposta",
+      "dica": "justifica ou defende sua proposta, amostra, marca ou documento",
+      "lados": [
+        "fornecedor"
+      ]
+    },
+    {
+      "id": "pedido_acesso",
+      "nome": "Pede acesso a documentos",
+      "dica": "pede catálogo, proposta ou documentos de outros ou do processo",
+      "lados": [
+        "fornecedor"
+      ]
+    },
+    {
+      "id": "recurso",
+      "nome": "Recurso",
+      "dica": "intenção de recurso, razões ou contrarrazões",
+      "lados": [
+        "fornecedor"
+      ]
+    },
+    {
+      "id": "instrucao_pregoeiro",
+      "nome": "Instrução / convocação",
+      "dica": "manda o fornecedor fazer algo: orienta, convoca, cobra documento, ajuste ou prazo (anexe, corrija, envie até…)",
+      "lados": [
+        "pregoeiro"
+      ]
+    },
+    {
+      "id": "resposta_esclarecimento",
+      "nome": "Responde esclarecimento",
+      "dica": "só informa/explica em resposta a fornecedor, sem decidir nem mandar fazer ('está na aba Habilitação', 'são dias corridos', 'ainda não, cobrei de novo')",
+      "lados": [
+        "pregoeiro"
+      ]
+    },
+    {
+      "id": "decisao_pregoeiro",
+      "nome": "Decisão do pregoeiro",
+      "dica": "comunica um ato/decisão: aceita, recusa, desclassifica, habilita, libera, conclui análise, declara resultado — mesmo que esteja respondendo a alguém",
+      "lados": [
+        "pregoeiro"
+      ]
+    },
+    {
+      "id": "agenda_sessao",
+      "nome": "Agenda da sessão",
+      "dica": "suspende, retoma, marca nova data, inicia fase",
+      "lados": [
+        "pregoeiro"
+      ]
+    },
+    {
+      "id": "problema_sistema",
+      "nome": "Problema no sistema",
+      "dica": "portal instável, erro, não consegue anexar, help desk",
+      "lados": [
+        "fornecedor",
+        "pregoeiro"
+      ]
+    },
+    {
+      "id": "cortesia",
+      "nome": "Cortesia",
+      "dica": "bom dia, obrigado, ok, ciente",
+      "lados": [
+        "fornecedor",
+        "pregoeiro"
+      ]
+    },
+    {
+      "id": "outro",
+      "nome": "Outro",
+      "dica": "nenhuma das anteriores (explique na observação)",
+      "lados": [
+        "fornecedor",
+        "pregoeiro"
+      ]
+    }
+  ],
+  "temas": [
+    {
+      "id": "amostra",
+      "nome": "Amostra"
+    },
+    {
+      "id": "catalogo_marca",
+      "nome": "Catálogo / marca"
+    },
+    {
+      "id": "especificacao_tr",
+      "nome": "Especificação do TR"
+    },
+    {
+      "id": "habilitacao_documentos",
+      "nome": "Habilitação / documentos"
+    },
+    {
+      "id": "exequibilidade_preco",
+      "nome": "Exequibilidade / preço"
+    },
+    {
+      "id": "prazo",
+      "nome": "Prazo"
+    },
+    {
+      "id": "sessao_sistema",
+      "nome": "Sessão / sistema"
+    }
+  ],
+  "sinais": [
+    {
+      "id": "erro_fornecedor",
+      "nome": "Erro do fornecedor"
+    },
+    {
+      "id": "erro_administracao",
+      "nome": "Erro da administração"
+    },
+    {
+      "id": "questao_legal",
+      "nome": "Questão jurídica"
+    },
+    {
+      "id": "risco_recurso",
+      "nome": "Risco de recurso"
+    },
+    {
+      "id": "cita_norma",
+      "nome": "Cita edital / TR / lei"
+    },
+    {
+      "id": "exemplo_ouro",
+      "nome": "Exemplo ouro"
+    }
+  ],
+  "migracao": {
+    "2026-10-15": {
+      "pergunta_fornecedor": "pergunta_esclarecimento",
+      "argumento_recurso": "recurso",
+      "contestacao_concorrente": null,
+      "outro": null
+    }
+  }
+}

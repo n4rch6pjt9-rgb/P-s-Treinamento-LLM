@@ -1,0 +1,31 @@
+# SFT da intenção das mensagens do chat de pregão (Tunix + LoRA). Lido pelo notebook training/sft_tunix.ipynb
+# com CONFIG = 'sft_chat_intencao.yaml'. Dados (rodada 6, a melhor: macro-F1 0,498):
+#   python3 training/export_tarefas.py chat_intencao --prata-claude --sem-prata-regra --reforco 2
+# e suba training/data/tunix/chat_intencao/ (train/val/test.jsonl + rotulos.json) para o Drive.
+modelo:
+  hf_id: google/gemma-3-1b-it
+  tokenizer: local   # o notebook usa o tokenizer.model do snapshot do HF (sem gcsfs)
+lora:
+  rank: 16
+  alpha: 32.0
+  module_path: ".*q_einsum|.*kv_einsum|.*gate_proj|.*down_proj|.*up_proj"
+dados:
+  dir: /content/drive/MyDrive/licitagym-treino/chat_intencao
+  max_len: 768          # instrução (18 intenções, ~130 tokens a mais que a v1) + 2 mensagens de contexto + mensagem
+  batch: 4             # 8 estourou a memória da TPU v5e (OOM) na rodada 3
+  epocas: 2
+treino:
+  otimizador: adamw
+  lr: 1.0e-4
+  max_steps: 1066       # 2129 exemplos (reforço x2) / batch 4 = 533 steps por época x 2 épocas
+  eval_every_n_steps: 50
+  checkpoint_dir: /content/drive/MyDrive/licitagym-treino/chat_intencao/lora_ckpts
+  save_interval_steps: 100
+  max_to_keep: 2
+avaliacao:
+  max_generation_steps: 16
+  saida_merged: /content/drive/MyDrive/licitagym-treino/chat_intencao/gemma3-1b-chat-intencao-lora
+  # rótulos da tarefa + baseline = rótulo de regra convertido (gravado no próprio test.jsonl)
+  args_avaliar: "--rotulos /content/drive/MyDrive/licitagym-treino/chat_intencao/rotulos.json --baseline-do-gabarito baseline_regra"
+aceite:
+  criterio: macro_f1_sft > macro_f1_regras   # só com teste de ouro (curadoria) >= 150 mensagens
